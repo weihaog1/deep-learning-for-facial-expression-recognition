@@ -236,7 +236,7 @@ def train_model(
 
     # Learning rate scheduler - reduce LR when validation loss plateaus
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=2, verbose=True
+        optimizer, mode='min', factor=0.5, patience=2
     )
 
     # Early stopping
