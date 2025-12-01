@@ -1,0 +1,457 @@
+(venv) (base) PS C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\src> python run_experiments.py --all
+
+======================================================================
+RUNNING BASELINE MODEL (HOG + SVM)
+======================================================================
+============================================================
+BASELINE MODEL: HOG + SVM
+============================================================
+
+[1/4] Loading images...
+Loaded 13681 valid samples
+Class distribution:
+emotion
+neutral      6868
+happiness    5696
+surprise      368
+sadness       268
+anger         252
+disgust       208
+fear           21
+Name: count, dtype: int64
+Loaded 13681 images of shape (48, 48)
+
+[2/4] Extracting HOG features...
+Extracting HOG features: 100%|███████████████████████████████████| 13681/13681 [00:05<00:00, 2544.89it/s] 
+Feature vector size: 900
+
+[3/4] Splitting data...
+Training samples: 10944
+Testing samples: 2737
+
+[4/4] Training model...
+Scaling features...
+Training SVM classifier...
+Training complete!
+
+============================================================
+RESULTS
+============================================================
+Training Accuracy: 0.9993
+Testing Accuracy:  0.8210
+
+Classification Report:
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+              precision    recall  f1-score   support
+
+       anger       0.83      0.20      0.32        50
+     disgust       0.50      0.21      0.30        42
+        fear       0.00      0.00      0.00         4
+   happiness       0.84      0.85      0.85      1139
+     neutral       0.81      0.90      0.85      1374
+     sadness       0.67      0.11      0.19        54
+    surprise       0.67      0.14      0.22        74
+
+    accuracy                           0.82      2737
+   macro avg       0.62      0.35      0.39      2737
+weighted avg       0.81      0.82      0.80      2737
+
+Model saved to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\checkpoints\baseline_model.pkl
+Confusion matrix saved to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\outputs\baseline_confusion_matrix.png
+Per-class metrics saved to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\outputs\baseline_per_class_metrics.png
+Metrics saved to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\outputs\baseline_metrics.json
+
+Baseline Results:
+  Training Accuracy: 0.9993
+  Testing Accuracy:  0.8210
+
+======================================================================
+TRAINING CUSTOM CNN
+======================================================================
+============================================================
+TRAINING: CUSTOM MODEL
+============================================================
+Using CPU
+
+Loading data...
+Loaded 13681 valid samples
+Class distribution:
+emotion
+neutral      6868
+happiness    5696
+surprise      368
+sadness       268
+anger         252
+disgust       208
+fear           21
+Name: count, dtype: int64
+
+Data splits:
+  Training:   9576 samples
+  Validation: 1368 samples
+  Testing:    2737 samples
+
+Creating model...
+Trainable parameters: 423,175
+
+Starting training for 25 epochs...
+------------------------------------------------------------
+
+Epoch 1/25
+Training:   0%|                                                                  | 0/300 [00:00<?, ?it/s]C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\torch\utils\data\dataloader.py:668: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+  Train Loss: 1.0359 | Train Acc: 0.4895
+  Val Loss:   0.9860 | Val Acc:   0.5190
+  ✓ New best model! Saving to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\checkpoints\custom_best.pth
+
+Epoch 2/25
+  Train Loss: 0.9995 | Train Acc: 0.5119                                                                  
+  Val Loss:   0.9964 | Val Acc:   0.5175
+
+Epoch 3/25
+  Train Loss: 0.9880 | Train Acc: 0.5152                                                                  
+  Val Loss:   0.9780 | Val Acc:   0.5175
+  ✓ New best model! Saving to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\checkpoints\custom_best.pth
+
+Epoch 4/25
+  Train Loss: 0.9875 | Train Acc: 0.5093                                                                  
+  Val Loss:   0.9876 | Val Acc:   0.5190
+
+Epoch 5/25
+  Train Loss: 0.9854 | Train Acc: 0.5139                                                                  
+  Val Loss:   0.9707 | Val Acc:   0.5197
+  ✓ New best model! Saving to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\checkpoints\custom_best.pth
+
+Epoch 6/25
+  Train Loss: 0.9861 | Train Acc: 0.5169                                                                  
+  Val Loss:   0.9662 | Val Acc:   0.5190
+  ✓ New best model! Saving to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\checkpoints\custom_best.pth
+
+Epoch 7/25
+  Train Loss: 0.9820 | Train Acc: 0.5136                                                                  
+  Val Loss:   0.9753 | Val Acc:   0.5110
+
+Epoch 8/25
+  Train Loss: 0.9793 | Train Acc: 0.5137                                                                  
+  Val Loss:   0.9612 | Val Acc:   0.5241
+  ✓ New best model! Saving to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\checkpoints\custom_best.pth
+
+Epoch 9/25
+  Train Loss: 0.9842 | Train Acc: 0.5145                                                                  
+  Val Loss:   0.9698 | Val Acc:   0.5190
+
+Epoch 10/25
+  Train Loss: 0.9763 | Train Acc: 0.5178                                                                  
+  Val Loss:   0.9741 | Val Acc:   0.5175
+
+Epoch 11/25
+  Train Loss: 0.9791 | Train Acc: 0.5156                                                                  
+  Val Loss:   0.9640 | Val Acc:   0.5197
+
+Epoch 12/25
+  Train Loss: 0.9688 | Train Acc: 0.5196                                                                  
+  Val Loss:   0.9692 | Val Acc:   0.5219
+
+Epoch 13/25
+  Train Loss: 0.9678 | Train Acc: 0.5192                                                                  
+  Val Loss:   0.9640 | Val Acc:   0.5439
+
+Early stopping triggered after 13 epochs
+
+============================================================
+FINAL EVALUATION
+============================================================
+Test Loss: 0.9648
+Test Accuracy: 0.5188
+
+Training history saved to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\checkpoints\custom_history.json
+
+Custom CNN Results:
+  Test Accuracy: 0.5188
+  Best Epoch:    8
+
+======================================================================
+TRAINING TRANSFER LEARNING MODEL
+======================================================================
+============================================================
+TRANSFER LEARNING WITH FINE-TUNING
+============================================================
+Using CPU
+
+Loading data...
+Loaded 13681 valid samples
+Class distribution:
+emotion
+neutral      6868
+happiness    5696
+surprise      368
+sadness       268
+anger         252
+disgust       208
+fear           21
+Name: count, dtype: int64
+
+Data splits:
+  Training:   9576 samples
+  Validation: 1368 samples
+  Testing:    2737 samples
+
+------------------------------------------------------------
+PHASE 1: Training classifier (backbone frozen)
+------------------------------------------------------------
+Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to C:\Users\Alan/.cache\torch\hub\checkpoints\resnet18-f37072fd.pth
+100%|███████████████████████████████████████████████████████████████| 44.7M/44.7M [00:01<00:00, 23.8MB/s]
+Trainable parameters: 3,591
+
+Phase 1 - Epoch 1/12
+Training:   0%|                                                                  | 0/300 [00:00<?, ?it/s]C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\torch\utils\data\dataloader.py:668: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+  Train: loss=1.0169, acc=0.5630
+  Val:   loss=0.8450, acc=0.6762
+
+Phase 1 - Epoch 2/12
+  Train: loss=0.9122, acc=0.6091                                                                          
+  Val:   loss=0.8892, acc=0.6089
+
+Phase 1 - Epoch 3/12
+  Train: loss=0.9188, acc=0.6014                                                                          
+  Val:   loss=0.8478, acc=0.6499
+
+Phase 1 - Epoch 4/12
+  Train: loss=0.9229, acc=0.6044                                                                          
+  Val:   loss=0.8142, acc=0.6879
+
+Phase 1 - Epoch 5/12
+  Train: loss=0.9155, acc=0.6074                                                                          
+  Val:   loss=0.8625, acc=0.6265
+
+Phase 1 - Epoch 6/12
+  Train: loss=0.8951, acc=0.6165                                                                          
+  Val:   loss=0.8469, acc=0.6382
+
+Phase 1 - Epoch 7/12
+  Train: loss=0.9016, acc=0.6129                                                                          
+  Val:   loss=0.8347, acc=0.6586
+Early stopping phase 1
+
+------------------------------------------------------------
+PHASE 2: Fine-tuning entire network
+------------------------------------------------------------
+Backbone unfrozen - all layers are now trainable
+Trainable parameters: 11,180,103
+
+Phase 2 - Epoch 1/12
+  Train: loss=0.5450, acc=0.8096                                                                          
+  Val:   loss=0.4097, acc=0.8626
+  ✓ Saving best model
+
+Phase 2 - Epoch 2/12
+  Train: loss=0.3967, acc=0.8610                                                                          
+  Val:   loss=0.3866, acc=0.8743
+  ✓ Saving best model
+
+Phase 2 - Epoch 3/12
+  Train: loss=0.3356, acc=0.8834                                                                          
+  Val:   loss=0.3487, acc=0.8808
+  ✓ Saving best model
+
+Phase 2 - Epoch 4/12
+  Train: loss=0.2824, acc=0.8983                                                                          
+  Val:   loss=0.3703, acc=0.8757
+
+Phase 2 - Epoch 5/12
+  Train: loss=0.2585, acc=0.9073                                                                          
+  Val:   loss=0.3557, acc=0.8801
+
+Phase 2 - Epoch 6/12
+  Train: loss=0.2236, acc=0.9190                                                                          
+  Val:   loss=0.3410, acc=0.8969
+  ✓ Saving best model
+
+Phase 2 - Epoch 7/12
+  Train: loss=0.1783, acc=0.9324                                                                          
+  Val:   loss=0.3851, acc=0.8830
+
+Phase 2 - Epoch 8/12
+  Train: loss=0.1641, acc=0.9398                                                                          
+  Val:   loss=0.3774, acc=0.8750
+
+Phase 2 - Epoch 9/12
+  Train: loss=0.1362, acc=0.9527                                                                          
+  Val:   loss=0.4289, acc=0.8728
+
+Phase 2 - Epoch 10/12
+  Train: loss=0.0865, acc=0.9714                                                                          
+  Val:   loss=0.4290, acc=0.8925
+
+Phase 2 - Epoch 11/12
+  Train: loss=0.0635, acc=0.9793                                                                          
+  Val:   loss=0.4467, acc=0.8991
+Early stopping phase 2
+
+============================================================
+FINAL EVALUATION
+============================================================
+Test Loss: 0.3622
+Test Accuracy: 0.8805
+
+Transfer Learning Results:
+  Test Accuracy: 0.8805
+
+======================================================================
+EVALUATING ALL MODELS
+======================================================================
+
+Evaluating custom model...
+============================================================
+EVALUATING: CUSTOM MODEL
+============================================================
+Device: cpu
+Loading checkpoint: C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\checkpoints\custom_best.pth
+Loaded 13681 valid samples
+Class distribution:
+emotion
+neutral      6868
+happiness    5696
+surprise      368
+sadness       268
+anger         252
+disgust       208
+fear           21
+Name: count, dtype: int64
+
+Data splits:
+  Training:   9576 samples
+  Validation: 1368 samples
+  Testing:    2737 samples
+
+Generating predictions...
+Evaluating:   0%|                                                                 | 0/86 [00:00<?, ?it/s]C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\torch\utils\data\dataloader.py:668: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+Evaluating: 100%|████████████████████████████████████████████████████████| 86/86 [00:21<00:00,  3.96it/s]
+
+Calculating metrics...
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+
+============================================================
+RESULTS
+============================================================
+
+Overall Accuracy: 0.5188
+
+Macro-averaged:
+  Precision: 0.1694
+  Recall:    0.1563
+  F1-Score:  0.1282
+
+Per-class breakdown:
+  anger       : P=0.000, R=0.000, F1=0.000, n=50
+  disgust     : P=0.200, R=0.048, F1=0.077, n=42
+  fear        : P=0.000, R=0.000, F1=0.000, n=4
+  happiness   : P=0.461, R=0.083, F1=0.141, n=1139
+  neutral     : P=0.525, R=0.963, F1=0.679, n=1374
+  sadness     : P=0.000, R=0.000, F1=0.000, n=54
+  surprise    : P=0.000, R=0.000, F1=0.000, n=74
+
+Classification Report:
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+              precision    recall  f1-score   support
+
+       anger       0.00      0.00      0.00        50
+     disgust       0.20      0.05      0.08        42
+        fear       0.00      0.00      0.00         4
+   happiness       0.46      0.08      0.14      1139
+     neutral       0.52      0.96      0.68      1374
+     sadness       0.00      0.00      0.00        54
+    surprise       0.00      0.00      0.00        74
+
+    accuracy                           0.52      2737
+   macro avg       0.17      0.16      0.13      2737
+weighted avg       0.46      0.52      0.40      2737
+
+Saved confusion matrix to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\outputs\custom_confusion_matrix.png
+Saved per-class metrics to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\outputs\custom_per_class_metrics.png
+Saved training history to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\outputs\custom_training_history.png
+
+Metrics saved to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\outputs\custom_metrics.json
+
+Checkpoint not found for transfer, skipping...
+
+Evaluating fine-tuned transfer model...
+Loaded 13681 valid samples
+Class distribution:
+emotion
+neutral      6868
+happiness    5696
+surprise      368
+sadness       268
+anger         252
+disgust       208
+fear           21
+Name: count, dtype: int64
+
+Data splits:
+  Training:   9576 samples
+  Validation: 1368 samples
+  Testing:    2737 samples
+Evaluating:   0%|                                                                 | 0/86 [00:00<?, ?it/s]C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\torch\utils\data\dataloader.py:668: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+Evaluating: 100%|████████████████████████████████████████████████████████| 86/86 [00:26<00:00,  3.29it/s]
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\sklearn\metrics\_classification.py:1731: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 in labels with no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, f"{metric.capitalize()} is", result.shape[0])
+
+Generating model comparison...
+Saved model comparison to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\outputs\model_comparison.png
+
+======================================================================
+GENERATING GRAD-CAM VISUALIZATIONS
+======================================================================
+Loaded 13681 valid samples
+Class distribution:
+emotion
+neutral      6868
+happiness    5696
+surprise      368
+sadness       268
+anger         252
+disgust       208
+fear           21
+Name: count, dtype: int64
+
+Data splits:
+  Training:   9576 samples
+  Validation: 1368 samples
+  Testing:    2737 samples
+
+Generating Grad-CAM for custom model...
+C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\venv\Lib\site-packages\torch\utils\data\dataloader.py:668: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+Saved visualization to C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\outputs\gradcam_custom.png
+
+Checkpoint not found for transfer, skipping Grad-CAM...
+
+======================================================================
+ALL EXPERIMENTS COMPLETE!
+======================================================================
+
+Results saved to: C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\outputs       
+Model checkpoints: C:\Users\Alan\Codin\CS178\deep-learning-for-facial-expression-recognition\checkpoints
