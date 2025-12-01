@@ -14,6 +14,7 @@ useful for recognizing facial expressions based on muscle movements.
 """
 
 import numpy as np
+import json
 from typing import Tuple, Dict
 import pickle
 from pathlib import Path
@@ -21,13 +22,15 @@ from pathlib import Path
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, precision_recall_fscore_support
 from skimage.feature import hog
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from config import (
     BASELINE_IMG_SIZE, EMOTION_CLASSES, IDX_TO_EMOTION,
-    TEST_SPLIT, RANDOM_SEED, CHECKPOINT_DIR
+    TEST_SPLIT, RANDOM_SEED, CHECKPOINT_DIR, OUTPUT_DIR
 )
 
 
@@ -230,15 +233,89 @@ def train_baseline_model() -> Tuple[BaselineModel, Dict]:
     # Confusion matrix
     cm = confusion_matrix(y_test, y_pred)
 
+    # Per-class metrics
+    precision, recall, f1, support = precision_recall_fscore_support(
+        y_test, y_pred, average=None, zero_division=0
+    )
+
     # Save model
     model.save(CHECKPOINT_DIR / "baseline_model.pkl")
+
+    # Save outputs (plots and metrics)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Save confusion matrix plot
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    cm_normalized = cm.astype('float') / (cm.sum(axis=1, keepdims=True) + 1e-10)
+
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=EMOTION_CLASSES, yticklabels=EMOTION_CLASSES, ax=axes[0])
+    axes[0].set_xlabel('Predicted')
+    axes[0].set_ylabel('True')
+    axes[0].set_title('Baseline (HOG+SVM) - Counts')
+
+    sns.heatmap(cm_normalized, annot=True, fmt='.1%', cmap='Blues',
+                xticklabels=EMOTION_CLASSES, yticklabels=EMOTION_CLASSES, ax=axes[1])
+    axes[1].set_xlabel('Predicted')
+    axes[1].set_ylabel('True')
+    axes[1].set_title('Baseline (HOG+SVM) - Normalized')
+
+    plt.tight_layout()
+    plt.savefig(OUTPUT_DIR / "baseline_confusion_matrix.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"Confusion matrix saved to {OUTPUT_DIR / 'baseline_confusion_matrix.png'}")
+
+    # Save per-class metrics plot
+    fig, ax = plt.subplots(figsize=(12, 5))
+    x = np.arange(len(EMOTION_CLASSES))
+    width = 0.25
+
+    ax.bar(x - width, precision, width, label='Precision', color='steelblue')
+    ax.bar(x, recall, width, label='Recall', color='darkorange')
+    ax.bar(x + width, f1, width, label='F1-Score', color='forestgreen')
+
+    ax.set_xlabel('Emotion Class')
+    ax.set_ylabel('Score')
+    ax.set_title('Baseline (HOG+SVM) Per-Class Performance')
+    ax.set_xticks(x)
+    ax.set_xticklabels(EMOTION_CLASSES, rotation=45, ha='right')
+    ax.legend()
+    ax.set_ylim(0, 1.0)
+    ax.grid(True, alpha=0.3, axis='y')
+
+    plt.tight_layout()
+    plt.savefig(OUTPUT_DIR / "baseline_per_class_metrics.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"Per-class metrics saved to {OUTPUT_DIR / 'baseline_per_class_metrics.png'}")
+
+    # Save metrics as JSON
+    metrics = {
+        'model_name': 'HOG + SVM (Baseline)',
+        'train_accuracy': float(train_acc),
+        'test_accuracy': float(test_acc),
+        'per_class': {
+            emotion: {
+                'precision': float(precision[i]),
+                'recall': float(recall[i]),
+                'f1': float(f1[i]),
+                'support': int(support[i])
+            }
+            for i, emotion in enumerate(EMOTION_CLASSES)
+        },
+        'confusion_matrix': cm.tolist()
+    }
+
+    with open(OUTPUT_DIR / "baseline_metrics.json", 'w') as f:
+        json.dump(metrics, f, indent=2)
+    print(f"Metrics saved to {OUTPUT_DIR / 'baseline_metrics.json'}")
 
     results = {
         'train_accuracy': train_acc,
         'test_accuracy': test_acc,
         'confusion_matrix': cm,
         'predictions': y_pred,
-        'ground_truth': y_test
+        'ground_truth': y_test,
+        'per_class_f1': f1.tolist()
     }
 
     return model, results
