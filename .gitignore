@@ -1,0 +1,34 @@
+# Data (cloned separately)
+/data
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+
+# Model outputs
+*.pth
+*.pt
+*.h5
+*.pkl
+/outputs/
+/checkpoints/
+/logs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
