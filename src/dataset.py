@@ -10,13 +10,78 @@ This module provides:
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageOps
 from typing import Tuple, List, Optional
 
 import torch
 from torch.utils.data import Dataset, DataLoader, Subset
 from torchvision import transforms
 from sklearn.model_selection import train_test_split
+
+
+# =============================================================================
+# Custom Image Pre-processing Transforms (from FERDCNN paper)
+# =============================================================================
+
+class GammaCorrection:
+    """
+    Apply gamma correction to adjust image contrast.
+
+    From FERDCNN paper: gamma=1.7 achieved best results.
+    - gamma > 1: darker image (emphasizes shadows)
+    - gamma < 1: brighter image
+    - gamma = 1: no change
+
+    Formula: I_out = I_in ^ gamma
+    """
+
+    def __init__(self, gamma: float = 1.7):
+        self.gamma = gamma
+
+    def __call__(self, img: Image.Image) -> Image.Image:
+        # Convert to numpy for gamma correction
+        img_array = np.array(img, dtype=np.float32) / 255.0
+
+        # Apply gamma correction
+        img_corrected = np.power(img_array, self.gamma)
+
+        # Convert back to PIL Image
+        img_corrected = (img_corrected * 255).astype(np.uint8)
+        return Image.fromarray(img_corrected)
+
+    def __repr__(self):
+        return f"GammaCorrection(gamma={self.gamma})"
+
+
+class HistogramEqualization:
+    """
+    Apply histogram equalization to normalize brightness distribution.
+
+    This improves contrast and makes the model more robust to
+    different lighting conditions.
+
+    From FERDCNN paper: Applied after gamma correction.
+    """
+
+    def __call__(self, img: Image.Image) -> Image.Image:
+        # For RGB images, apply equalization to each channel
+        if img.mode == 'RGB':
+            # Convert to LAB color space for better results
+            # Equalize only the L (lightness) channel
+            from PIL import Image
+            import numpy as np
+
+            # Simple per-channel equalization
+            r, g, b = img.split()
+            r_eq = ImageOps.equalize(r)
+            g_eq = ImageOps.equalize(g)
+            b_eq = ImageOps.equalize(b)
+            return Image.merge('RGB', (r_eq, g_eq, b_eq))
+        else:
+            return ImageOps.equalize(img)
+
+    def __repr__(self):
+        return "HistogramEqualization()"
 
 from config import (
     IMAGES_DIR, LEGEND_PATH, EMOTION_CLASSES, EMOTION_TO_IDX,
@@ -95,18 +160,36 @@ class FacialExpressionDataset(Dataset):
         return image, label
 
 
-def get_train_transform() -> transforms.Compose:
+def get_train_transform(use_preprocessing: bool = True) -> transforms.Compose:
     """
     Get transforms for training data.
 
-    Includes data augmentation to prevent overfitting:
+    Pre-processing (from FERDCNN paper - improves accuracy by ~5-10%):
+    - Gamma correction (gamma=1.7)
+    - Histogram equalization
+
+    Data augmentation to prevent overfitting:
     - Random horizontal flip (faces are mostly symmetric)
     - Small rotation (up to 10 degrees)
     - Color jitter (simulate lighting changes)
     - Normalization with ImageNet statistics
+
+    Args:
+        use_preprocessing: Whether to apply gamma correction and histogram equalization
     """
-    return transforms.Compose([
+    transform_list = [
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
+    ]
+
+    # Add preprocessing from FERDCNN paper
+    if use_preprocessing:
+        transform_list.extend([
+            GammaCorrection(gamma=1.7),      # Adjust contrast
+            HistogramEqualization(),          # Normalize brightness
+        ])
+
+    # Add augmentation
+    transform_list.extend([
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomRotation(degrees=10),
         transforms.ColorJitter(brightness=0.2, contrast=0.2),
@@ -114,18 +197,39 @@ def get_train_transform() -> transforms.Compose:
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
     ])
 
+    return transforms.Compose(transform_list)
 
-def get_test_transform() -> transforms.Compose:
+
+def get_test_transform(use_preprocessing: bool = True) -> transforms.Compose:
     """
     Get transforms for validation/test data.
 
+    Pre-processing (from FERDCNN paper):
+    - Gamma correction (gamma=1.7)
+    - Histogram equalization
+
     No augmentation - just resize and normalize for consistent evaluation.
+
+    Args:
+        use_preprocessing: Whether to apply gamma correction and histogram equalization
     """
-    return transforms.Compose([
+    transform_list = [
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
+    ]
+
+    # Add preprocessing from FERDCNN paper
+    if use_preprocessing:
+        transform_list.extend([
+            GammaCorrection(gamma=1.7),      # Adjust contrast
+            HistogramEqualization(),          # Normalize brightness
+        ])
+
+    transform_list.extend([
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
     ])
+
+    return transforms.Compose(transform_list)
 
 
 def create_data_loaders(

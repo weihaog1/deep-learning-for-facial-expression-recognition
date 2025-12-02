@@ -24,12 +24,50 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+import numpy as np
+
 from config import (
     NUM_EPOCHS, LEARNING_RATE, PATIENCE,
-    CHECKPOINT_DIR, RANDOM_SEED, FINE_TUNE_LR
+    CHECKPOINT_DIR, RANDOM_SEED, FINE_TUNE_LR, NUM_CLASSES
 )
 from models import get_model, count_parameters
-from dataset import create_data_loaders
+from dataset import create_data_loaders, load_and_clean_labels
+
+
+def calculate_class_weights(device: torch.device) -> torch.Tensor:
+    """
+    Calculate class weights for handling imbalanced data.
+
+    From FERDCNN paper and other group's findings:
+    - Class weighting is CRITICAL for preventing mode collapse
+    - Without it, model just predicts majority class (neutral) for everything
+
+    Formula: weight[i] = total_samples / (num_classes * samples_in_class[i])
+
+    Returns:
+        Tensor of class weights to use in CrossEntropyLoss
+    """
+    # Load the dataset to get class counts
+    df = load_and_clean_labels()
+    class_counts = df['label'].value_counts().sort_index().values
+
+    print(f"\nClass distribution:")
+    for i, count in enumerate(class_counts):
+        print(f"  Class {i}: {count} samples")
+
+    # Calculate weights: inverse frequency
+    # More samples = lower weight, fewer samples = higher weight
+    total_samples = len(df)
+    weights = total_samples / (NUM_CLASSES * class_counts)
+
+    # Normalize weights so they sum to NUM_CLASSES
+    weights = weights / weights.sum() * NUM_CLASSES
+
+    print(f"\nClass weights:")
+    for i, w in enumerate(weights):
+        print(f"  Class {i}: {w:.4f}")
+
+    return torch.tensor(weights, dtype=torch.float32).to(device)
 
 
 def set_seed(seed: int = RANDOM_SEED) -> None:
@@ -196,7 +234,8 @@ def train_model(
     model_type: str = 'custom',
     num_epochs: int = NUM_EPOCHS,
     learning_rate: float = LEARNING_RATE,
-    save_name: Optional[str] = None
+    save_name: Optional[str] = None,
+    use_class_weights: bool = True  # NEW: Enable class weighting by default
 ) -> Dict:
     """
     Complete training pipeline.
@@ -230,8 +269,19 @@ def train_model(
     model = model.to(device)
     print(f"Trainable parameters: {count_parameters(model):,}")
 
-    # Loss function and optimizer
-    criterion = nn.CrossEntropyLoss()  # Handles multi-class classification
+    # Loss function with optional class weighting
+    # Class weighting is CRITICAL for imbalanced datasets like ours
+    # Without it, the model learns to always predict "neutral" (majority class)
+    if use_class_weights:
+        print("\nCalculating class weights for balanced training...")
+        class_weights = calculate_class_weights(device)
+        criterion = nn.CrossEntropyLoss(weight=class_weights)
+        print("Using class-weighted CrossEntropyLoss")
+    else:
+        criterion = nn.CrossEntropyLoss()
+        print("Using standard CrossEntropyLoss (no class weighting)")
+
+    # Optimizer
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     # Learning rate scheduler - reduce LR when validation loss plateaus
@@ -449,9 +499,27 @@ def train_with_fine_tuning(num_epochs: int = NUM_EPOCHS) -> Dict:
     print(f"Test Loss: {test_loss:.4f}")
     print(f"Test Accuracy: {test_acc:.4f}")
 
+    # Save combined training history for both phases
+    combined_history = {
+        'phase1': history_phase1,
+        'phase2': history_phase2,
+        'train_loss': history_phase1['train_loss'] + history_phase2['train_loss'],
+        'train_acc': history_phase1['train_acc'] + history_phase2['train_acc'],
+        'val_loss': history_phase1['val_loss'] + history_phase2['val_loss'],
+        'val_acc': history_phase1['val_acc'] + history_phase2['val_acc'],
+        'phase1_epochs': len(history_phase1['train_loss']),
+        'phase2_epochs': len(history_phase2['train_loss'])
+    }
+
+    history_path = CHECKPOINT_DIR / "transfer_history.json"
+    with open(history_path, 'w') as f:
+        json.dump(combined_history, f, indent=2)
+    print(f"\nTraining history saved to {history_path}")
+
     return {
         'history_phase1': history_phase1,
         'history_phase2': history_phase2,
+        'combined_history': combined_history,
         'test_loss': test_loss,
         'test_acc': test_acc
     }

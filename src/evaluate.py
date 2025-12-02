@@ -243,6 +243,79 @@ def plot_training_history(
     plt.close()
 
 
+def plot_transfer_learning_history(
+    history: Dict,
+    title: str = "Transfer Learning Training History",
+    save_path: Optional[str] = None
+) -> None:
+    """
+    Plot two-phase transfer learning training history.
+
+    Shows:
+    - Phase 1 (frozen backbone): Learning classifier only
+    - Phase 2 (fine-tuning): Training entire network
+    - Vertical line separating the two phases
+
+    Args:
+        history: Dictionary with 'phase1', 'phase2', and combined metrics
+        title: Plot title
+        save_path: Optional path to save figure
+    """
+    phase1_epochs = history.get('phase1_epochs', len(history.get('phase1', {}).get('train_loss', [])))
+    total_epochs = len(history['train_loss'])
+
+    epochs = range(1, total_epochs + 1)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Loss plot
+    axes[0].plot(epochs, history['train_loss'], 'b-', label='Training', linewidth=2)
+    axes[0].plot(epochs, history['val_loss'], 'r-', label='Validation', linewidth=2)
+    axes[0].axvline(x=phase1_epochs + 0.5, color='green', linestyle='--', linewidth=2, label='Phase 1→2')
+    axes[0].set_xlabel('Epoch', fontsize=12)
+    axes[0].set_ylabel('Loss', fontsize=12)
+    axes[0].set_title('Loss Curve', fontsize=14)
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+
+    # Add phase labels
+    axes[0].text(phase1_epochs / 2, axes[0].get_ylim()[1] * 0.9, 'Phase 1\n(Frozen)',
+                 ha='center', fontsize=10, color='gray')
+    axes[0].text(phase1_epochs + (total_epochs - phase1_epochs) / 2, axes[0].get_ylim()[1] * 0.9,
+                 'Phase 2\n(Fine-tune)', ha='center', fontsize=10, color='gray')
+
+    # Accuracy plot
+    train_acc_pct = [acc * 100 for acc in history['train_acc']]
+    val_acc_pct = [acc * 100 for acc in history['val_acc']]
+
+    axes[1].plot(epochs, train_acc_pct, 'b-', label='Training', linewidth=2)
+    axes[1].plot(epochs, val_acc_pct, 'r-', label='Validation', linewidth=2)
+    axes[1].axvline(x=phase1_epochs + 0.5, color='green', linestyle='--', linewidth=2, label='Phase 1→2')
+    axes[1].set_xlabel('Epoch', fontsize=12)
+    axes[1].set_ylabel('Accuracy (%)', fontsize=12)
+    axes[1].set_title('Accuracy Curve', fontsize=14)
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+
+    # Add phase labels
+    axes[1].text(phase1_epochs / 2, axes[1].get_ylim()[1] * 0.95, 'Phase 1\n(Frozen)',
+                 ha='center', fontsize=10, color='gray')
+    axes[1].text(phase1_epochs + (total_epochs - phase1_epochs) / 2, axes[1].get_ylim()[1] * 0.95,
+                 'Phase 2\n(Fine-tune)', ha='center', fontsize=10, color='gray')
+
+    plt.suptitle(title, fontsize=16)
+    plt.tight_layout()
+
+    if save_path:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Saved transfer learning history to {save_path}")
+    else:
+        plt.show()
+
+    plt.close()
+
+
 def plot_per_class_metrics(
     metrics: Dict,
     title: str = "Per-Class Metrics",
@@ -333,7 +406,11 @@ def evaluate_model(
 
     # Load checkpoint
     if checkpoint_path is None:
-        checkpoint_path = CHECKPOINT_DIR / f"{model_type}_best.pth"
+        # Transfer learning uses different checkpoint name
+        if model_type == 'transfer':
+            checkpoint_path = CHECKPOINT_DIR / "transfer_finetuned_best.pth"
+        else:
+            checkpoint_path = CHECKPOINT_DIR / f"{model_type}_best.pth"
     print(f"Loading checkpoint: {checkpoint_path}")
 
     # Create model and load weights
@@ -397,11 +474,20 @@ def evaluate_model(
         if history_path.exists():
             with open(history_path) as f:
                 history = json.load(f)
-            plot_training_history(
-                history,
-                title=f"{model_type.title()} Model Training History",
-                save_path=str(OUTPUT_DIR / f"{model_type}_training_history.png")
-            )
+
+            # Use special two-phase plot for transfer learning
+            if model_type == 'transfer' and 'phase1_epochs' in history:
+                plot_transfer_learning_history(
+                    history,
+                    title="Transfer Learning (ResNet18) Training History",
+                    save_path=str(OUTPUT_DIR / f"{model_type}_training_history.png")
+                )
+            else:
+                plot_training_history(
+                    history,
+                    title=f"{model_type.title()} Model Training History",
+                    save_path=str(OUTPUT_DIR / f"{model_type}_training_history.png")
+                )
 
     # Save metrics
     metrics_path = OUTPUT_DIR / f"{model_type}_metrics.json"
@@ -491,11 +577,16 @@ if __name__ == "__main__":
         # Evaluate all models and compare
         results = {}
         for model_type in ['custom', 'transfer']:
-            checkpoint = CHECKPOINT_DIR / f"{model_type}_best.pth"
+            # Handle different checkpoint naming
+            if model_type == 'transfer':
+                checkpoint = CHECKPOINT_DIR / "transfer_finetuned_best.pth"
+            else:
+                checkpoint = CHECKPOINT_DIR / f"{model_type}_best.pth"
+
             if checkpoint.exists():
                 results[model_type] = evaluate_model(model_type)
             else:
-                print(f"Checkpoint not found for {model_type}, skipping...")
+                print(f"Checkpoint not found for {model_type} at {checkpoint}, skipping...")
 
         if len(results) > 1:
             compare_models(results, str(OUTPUT_DIR / "model_comparison.png"))

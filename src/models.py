@@ -20,13 +20,18 @@ class ConvBlock(nn.Module):
     """
     A reusable convolutional block.
 
-    Structure: Conv2D -> BatchNorm -> ReLU -> MaxPool
+    Structure: Conv2D -> BatchNorm -> LeakyReLU -> MaxPool
 
     This pattern is standard in CNNs:
     - Conv2D: Learns spatial features (edges, textures, patterns)
     - BatchNorm: Stabilizes training, allows higher learning rates
-    - ReLU: Non-linearity for learning complex patterns
+    - LeakyReLU: Non-linearity that prevents dying neurons (improvement over ReLU)
     - MaxPool: Reduces spatial dimensions, adds translation invariance
+
+    Using LeakyReLU instead of ReLU (from CS178 other group's findings):
+    - Prevents "dying ReLU" problem where neurons output 0 for all inputs
+    - Allows small gradient when input is negative
+    - Improved their accuracy from 91% to 95%
     """
 
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3):
@@ -37,12 +42,14 @@ class ConvBlock(nn.Module):
             padding=kernel_size // 2  # Same padding to preserve size
         )
         self.bn = nn.BatchNorm2d(out_channels)
+        # LeakyReLU: f(x) = x if x > 0, else 0.01 * x
+        self.activation = nn.LeakyReLU(negative_slope=0.01)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv(x)
         x = self.bn(x)
-        x = F.relu(x)
+        x = self.activation(x)  # LeakyReLU instead of ReLU
         x = self.pool(x)
         return x
 
@@ -59,13 +66,14 @@ class CustomCNN(nn.Module):
     Input: RGB images of size 224x224
     Output: 7 class logits (one per emotion)
 
-    This architecture is designed to:
-    - Be deep enough to learn complex facial features
-    - Use dropout and batch norm to prevent overfitting on small dataset
-    - Be computationally efficient with global average pooling
+    Improvements applied:
+    - LeakyReLU instead of ReLU (prevents dying neurons)
+    - Reduced dropout (0.3 instead of 0.5) - works better with batch norm
+    - Gamma correction + histogram equalization in preprocessing
+    - Class-weighted loss to handle imbalanced data
     """
 
-    def __init__(self, num_classes: int = NUM_CLASSES, dropout: float = CNN_DROPOUT):
+    def __init__(self, num_classes: int = NUM_CLASSES, dropout: float = 0.3):
         super().__init__()
 
         # Convolutional layers
@@ -80,9 +88,10 @@ class CustomCNN(nn.Module):
         # This is more robust than flattening and reduces overfitting
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
 
-        # Classifier head
+        # Classifier head with LeakyReLU
         self.fc1 = nn.Linear(256, 128)
-        self.dropout = nn.Dropout(dropout)
+        self.fc_activation = nn.LeakyReLU(negative_slope=0.01)
+        self.dropout = nn.Dropout(dropout)  # Reduced from 0.5 to 0.3
         self.fc2 = nn.Linear(128, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -96,8 +105,8 @@ class CustomCNN(nn.Module):
         x = self.global_pool(x)
         x = x.view(x.size(0), -1)  # Flatten: (batch, 256, 1, 1) -> (batch, 256)
 
-        # Classification
-        x = F.relu(self.fc1(x))
+        # Classification with LeakyReLU
+        x = self.fc_activation(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
 
