@@ -70,7 +70,7 @@ TEST_SPLIT = 0.2      # 20% for testing
 VAL_SPLIT = 0.1       # 10% of training for validation
 
 # Training settings
-BATCH_SIZE = 32
+BATCH_SIZE = 128  # Increased from 32 for faster training on GPU
 NUM_EPOCHS = 25
 LEARNING_RATE = 0.001
 
