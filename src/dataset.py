@@ -232,9 +232,78 @@ def get_test_transform(use_preprocessing: bool = True) -> transforms.Compose:
     return transforms.Compose(transform_list)
 
 
+def smart_oversample(df: pd.DataFrame, target_min: int = 5000, target_max: int = 6500) -> pd.DataFrame:
+    """
+    Smart oversampling to balance classes WITHOUT making them perfectly uniform.
+
+    Based on findings from another CS178 group's work:
+    - Perfectly uniform distributions cause overfitting
+    - Slight variation (5,000-6,500 range) works better
+    - Only oversample minority classes, don't downsample majority
+
+    Args:
+        df: DataFrame with 'label' column
+        target_min: Minimum target samples per class
+        target_max: Maximum target samples per class
+
+    Returns:
+        Oversampled DataFrame
+    """
+    np.random.seed(RANDOM_SEED)
+
+    oversampled_dfs = []
+    class_counts = df['label'].value_counts()
+
+    print("\nSmart Oversampling (based on other group's findings):")
+    print(f"  Target range: {target_min:,} - {target_max:,} samples per class")
+    print(f"  Original distribution:")
+
+    for label in sorted(df['label'].unique()):
+        class_df = df[df['label'] == label]
+        original_count = len(class_df)
+
+        if original_count >= target_min:
+            # Keep as-is if already above minimum
+            oversampled_dfs.append(class_df)
+            print(f"    Class {label}: {original_count:,} -> {original_count:,} (kept)")
+        else:
+            # Oversample to a random target within range (adds variation)
+            # Use lower target for very small classes to reduce overfitting risk
+            if original_count < 100:
+                target = target_min  # Smallest classes get minimum target
+            else:
+                target = np.random.randint(target_min, target_max + 1)
+
+            # Calculate how many times to repeat + remainder
+            n_repeats = target // original_count
+            n_remainder = target % original_count
+
+            # Repeat the entire dataframe n_repeats times
+            repeated_dfs = [class_df] * n_repeats
+
+            # Add random samples for the remainder
+            if n_remainder > 0:
+                remainder_df = class_df.sample(n=n_remainder, replace=True, random_state=RANDOM_SEED)
+                repeated_dfs.append(remainder_df)
+
+            oversampled_class = pd.concat(repeated_dfs, ignore_index=True)
+            oversampled_dfs.append(oversampled_class)
+            print(f"    Class {label}: {original_count:,} -> {len(oversampled_class):,} (oversampled {len(oversampled_class)//original_count}x)")
+
+    result = pd.concat(oversampled_dfs, ignore_index=True)
+
+    # Shuffle the result
+    result = result.sample(frac=1, random_state=RANDOM_SEED).reset_index(drop=True)
+
+    print(f"\n  Total samples: {len(df):,} -> {len(result):,}")
+
+    return result
+
+
 def create_data_loaders(
     batch_size: int = BATCH_SIZE,
-    num_workers: int = 0
+    num_workers: int = 0,
+    use_oversampling: bool = True
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
     Create train, validation, and test data loaders.
@@ -246,6 +315,7 @@ def create_data_loaders(
     Args:
         batch_size: Number of samples per batch
         num_workers: Number of worker processes for data loading
+        use_oversampling: Whether to apply smart oversampling to training data
 
     Returns:
         Tuple of (train_loader, val_loader, test_loader)
@@ -269,10 +339,18 @@ def create_data_loaders(
         stratify=train_val_df['label']
     )
 
-    print(f"\nData splits:")
+    print(f"\nData splits (before oversampling):")
     print(f"  Training:   {len(train_df)} samples")
     print(f"  Validation: {len(val_df)} samples")
     print(f"  Testing:    {len(test_df)} samples")
+
+    # Apply smart oversampling to training data only
+    if use_oversampling:
+        train_df = smart_oversample(train_df)
+        print(f"\nData splits (after oversampling):")
+        print(f"  Training:   {len(train_df)} samples")
+        print(f"  Validation: {len(val_df)} samples (unchanged)")
+        print(f"  Testing:    {len(test_df)} samples (unchanged)")
 
     # Create datasets with appropriate transforms
     train_dataset = FacialExpressionDataset(train_df, transform=get_train_transform())

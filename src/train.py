@@ -235,7 +235,7 @@ def train_model(
     num_epochs: int = NUM_EPOCHS,
     learning_rate: float = LEARNING_RATE,
     save_name: Optional[str] = None,
-    use_class_weights: bool = True  # NEW: Enable class weighting by default
+    use_class_weights: bool = False  # Disabled: using smart oversampling instead (better results)
 ) -> Dict:
     """
     Complete training pipeline.
