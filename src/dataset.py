@@ -335,15 +335,16 @@ def create_data_loaders(
     """
     Create train, validation, and test data loaders.
 
-    The data is split as follows:
-    - 80% training (of which 10% is validation)
-    - 20% testing
+    Following other CS178 group's approach:
+    - Oversample FIRST to balance classes
+    - THEN split into train/val/test
+    - This ensures all splits have balanced class distribution
 
     Args:
         model_type: 'custom' for CNN (48x48 grayscale) or 'transfer' for ResNet (224x224 RGB)
         batch_size: Number of samples per batch
         num_workers: Number of worker processes for data loading
-        use_oversampling: Whether to apply smart oversampling to training data
+        use_oversampling: Whether to apply smart oversampling before splitting
 
     Returns:
         Tuple of (train_loader, val_loader, test_loader)
@@ -356,6 +357,13 @@ def create_data_loaders(
 
     # Load and clean the labels
     df = load_and_clean_labels()
+
+    print(f"\nOriginal data: {len(df)} samples")
+
+    # Apply smart oversampling BEFORE splitting (like other CS178 group)
+    # This ensures train/val/test all have balanced class distribution
+    if use_oversampling:
+        df = smart_oversample(df)
 
     # First split: separate test set (20%)
     train_val_df, test_df = train_test_split(
@@ -373,18 +381,10 @@ def create_data_loaders(
         stratify=train_val_df['label']
     )
 
-    print(f"\nData splits (before oversampling):")
+    print(f"\nData splits (all balanced):")
     print(f"  Training:   {len(train_df)} samples")
     print(f"  Validation: {len(val_df)} samples")
     print(f"  Testing:    {len(test_df)} samples")
-
-    # Apply smart oversampling to training data only
-    if use_oversampling:
-        train_df = smart_oversample(train_df)
-        print(f"\nData splits (after oversampling):")
-        print(f"  Training:   {len(train_df)} samples")
-        print(f"  Validation: {len(val_df)} samples (unchanged)")
-        print(f"  Testing:    {len(test_df)} samples (unchanged)")
 
     # Create datasets with appropriate transforms for the model type
     train_dataset = FacialExpressionDataset(train_df, transform=get_train_transform(model_type))
