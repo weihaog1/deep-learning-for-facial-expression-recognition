@@ -28,13 +28,13 @@ class CustomCNN(nn.Module):
     - Dropout 0.20
     - RMSprop optimizer
 
-    Input: 50x50 grayscale images
+    Input: 64x64 grayscale images
     Output: 7 class logits
 
     Architecture:
-        Conv1(32) -> BN -> LeakyReLU -> Pool    [50 -> 25]
-        Conv2(64) -> BN -> LeakyReLU -> Pool    [25 -> 12]
-        Conv3(32) -> BN -> LeakyReLU            [12 -> 12, no pool]
+        Conv1(32) -> BN -> LeakyReLU -> Pool    [64 -> 32]
+        Conv2(64) -> BN -> LeakyReLU -> Pool    [32 -> 16]
+        Conv3(32) -> BN -> LeakyReLU            [16 -> 16, no pool]
         Flatten -> FC -> Dropout -> Output
     """
 
@@ -61,9 +61,9 @@ class CustomCNN(nn.Module):
         self.activation = nn.LeakyReLU(negative_slope=0.01)
 
         # Classifier head
-        # After conv3: 32 channels * 12 * 12 = 4608 features
+        # After conv3: 32 channels * 16 * 16 = 8192 features (for 64x64 input)
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(32 * 12 * 12, 128)  # Hidden layer
+        self.fc1 = nn.Linear(32 * 16 * 16, 128)  # Hidden layer
         self.dropout = nn.Dropout(dropout)  # 0.20 from paper
         self.fc2 = nn.Linear(128, num_classes)
 
@@ -215,7 +215,7 @@ def count_parameters(model: nn.Module) -> int:
 
 if __name__ == "__main__":
     # Test model creation
-    print("Testing CustomCNN (50x50 grayscale - matching other CS178 group)...")
+    print("Testing CustomCNN (64x64 grayscale)...")
     custom_model = CustomCNN()
     x_cnn = torch.randn(4, CNN_CHANNELS, CNN_IMG_SIZE, CNN_IMG_SIZE)  # Batch of 4 grayscale images
     out = custom_model(x_cnn)
