@@ -85,7 +85,8 @@ class HistogramEqualization:
 
 from config import (
     IMAGES_DIR, LEGEND_PATH, EMOTION_CLASSES, EMOTION_TO_IDX,
-    IMG_SIZE, IMAGENET_MEAN, IMAGENET_STD,
+    CNN_IMG_SIZE, CNN_CHANNELS, TRANSFER_IMG_SIZE,
+    IMAGENET_MEAN, IMAGENET_STD, GRAYSCALE_MEAN, GRAYSCALE_STD,
     BATCH_SIZE, TEST_SPLIT, VAL_SPLIT, RANDOM_SEED
 )
 
@@ -160,74 +161,102 @@ class FacialExpressionDataset(Dataset):
         return image, label
 
 
-def get_train_transform(use_preprocessing: bool = True) -> transforms.Compose:
+def get_train_transform(model_type: str = 'custom', use_preprocessing: bool = True) -> transforms.Compose:
     """
-    Get transforms for training data.
+    Get transforms for training data based on model type.
 
-    Pre-processing (from FERDCNN paper - improves accuracy by ~5-10%):
-    - Gamma correction (gamma=1.7)
-    - Histogram equalization
-
-    Data augmentation to prevent overfitting:
-    - Random horizontal flip (faces are mostly symmetric)
-    - Small rotation (up to 10 degrees)
-    - Color jitter (simulate lighting changes)
-    - Normalization with ImageNet statistics
+    Custom CNN: 48x48 grayscale (fast training)
+    Transfer Learning: 224x224 RGB (required for pretrained weights)
 
     Args:
+        model_type: 'custom' for CNN or 'transfer' for ResNet
         use_preprocessing: Whether to apply gamma correction and histogram equalization
     """
-    transform_list = [
-        transforms.Resize((IMG_SIZE, IMG_SIZE)),
-    ]
+    if model_type == 'custom':
+        # Custom CNN: 48x48 grayscale (like other CS178 group)
+        transform_list = [
+            transforms.Resize((CNN_IMG_SIZE, CNN_IMG_SIZE)),
+            transforms.Grayscale(num_output_channels=1),
+        ]
 
-    # Add preprocessing from FERDCNN paper
-    if use_preprocessing:
+        if use_preprocessing:
+            transform_list.extend([
+                GammaCorrection(gamma=1.7),
+                HistogramEqualization(),
+            ])
+
         transform_list.extend([
-            GammaCorrection(gamma=1.7),      # Adjust contrast
-            HistogramEqualization(),          # Normalize brightness
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomRotation(degrees=10),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=GRAYSCALE_MEAN, std=GRAYSCALE_STD)
         ])
+    else:
+        # Transfer Learning: 224x224 RGB
+        transform_list = [
+            transforms.Resize((TRANSFER_IMG_SIZE, TRANSFER_IMG_SIZE)),
+        ]
 
-    # Add augmentation
-    transform_list.extend([
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(degrees=10),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-    ])
+        if use_preprocessing:
+            transform_list.extend([
+                GammaCorrection(gamma=1.7),
+                HistogramEqualization(),
+            ])
+
+        transform_list.extend([
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomRotation(degrees=10),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+        ])
 
     return transforms.Compose(transform_list)
 
 
-def get_test_transform(use_preprocessing: bool = True) -> transforms.Compose:
+def get_test_transform(model_type: str = 'custom', use_preprocessing: bool = True) -> transforms.Compose:
     """
-    Get transforms for validation/test data.
-
-    Pre-processing (from FERDCNN paper):
-    - Gamma correction (gamma=1.7)
-    - Histogram equalization
+    Get transforms for validation/test data based on model type.
 
     No augmentation - just resize and normalize for consistent evaluation.
 
     Args:
+        model_type: 'custom' for CNN or 'transfer' for ResNet
         use_preprocessing: Whether to apply gamma correction and histogram equalization
     """
-    transform_list = [
-        transforms.Resize((IMG_SIZE, IMG_SIZE)),
-    ]
+    if model_type == 'custom':
+        # Custom CNN: 48x48 grayscale
+        transform_list = [
+            transforms.Resize((CNN_IMG_SIZE, CNN_IMG_SIZE)),
+            transforms.Grayscale(num_output_channels=1),
+        ]
 
-    # Add preprocessing from FERDCNN paper
-    if use_preprocessing:
+        if use_preprocessing:
+            transform_list.extend([
+                GammaCorrection(gamma=1.7),
+                HistogramEqualization(),
+            ])
+
         transform_list.extend([
-            GammaCorrection(gamma=1.7),      # Adjust contrast
-            HistogramEqualization(),          # Normalize brightness
+            transforms.ToTensor(),
+            transforms.Normalize(mean=GRAYSCALE_MEAN, std=GRAYSCALE_STD)
         ])
+    else:
+        # Transfer Learning: 224x224 RGB
+        transform_list = [
+            transforms.Resize((TRANSFER_IMG_SIZE, TRANSFER_IMG_SIZE)),
+        ]
 
-    transform_list.extend([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-    ])
+        if use_preprocessing:
+            transform_list.extend([
+                GammaCorrection(gamma=1.7),
+                HistogramEqualization(),
+            ])
+
+        transform_list.extend([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
+        ])
 
     return transforms.Compose(transform_list)
 
@@ -301,6 +330,7 @@ def smart_oversample(df: pd.DataFrame, target_min: int = 3000, target_max: int =
 
 
 def create_data_loaders(
+    model_type: str = 'custom',
     batch_size: int = BATCH_SIZE,
     num_workers: int = 2,  # Parallel data loading (speeds up training)
     use_oversampling: bool = True
@@ -313,6 +343,7 @@ def create_data_loaders(
     - 20% testing
 
     Args:
+        model_type: 'custom' for CNN (48x48 grayscale) or 'transfer' for ResNet (224x224 RGB)
         batch_size: Number of samples per batch
         num_workers: Number of worker processes for data loading
         use_oversampling: Whether to apply smart oversampling to training data
@@ -320,6 +351,12 @@ def create_data_loaders(
     Returns:
         Tuple of (train_loader, val_loader, test_loader)
     """
+    # Print image format info
+    if model_type == 'custom':
+        print(f"\nUsing Custom CNN format: {CNN_IMG_SIZE}x{CNN_IMG_SIZE} grayscale")
+    else:
+        print(f"\nUsing Transfer Learning format: {TRANSFER_IMG_SIZE}x{TRANSFER_IMG_SIZE} RGB")
+
     # Load and clean the labels
     df = load_and_clean_labels()
 
@@ -352,10 +389,10 @@ def create_data_loaders(
         print(f"  Validation: {len(val_df)} samples (unchanged)")
         print(f"  Testing:    {len(test_df)} samples (unchanged)")
 
-    # Create datasets with appropriate transforms
-    train_dataset = FacialExpressionDataset(train_df, transform=get_train_transform())
-    val_dataset = FacialExpressionDataset(val_df, transform=get_test_transform())
-    test_dataset = FacialExpressionDataset(test_df, transform=get_test_transform())
+    # Create datasets with appropriate transforms for the model type
+    train_dataset = FacialExpressionDataset(train_df, transform=get_train_transform(model_type))
+    val_dataset = FacialExpressionDataset(val_df, transform=get_test_transform(model_type))
+    test_dataset = FacialExpressionDataset(test_df, transform=get_test_transform(model_type))
 
     # Create data loaders
     train_loader = DataLoader(

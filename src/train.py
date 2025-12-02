@@ -259,9 +259,9 @@ def train_model(
     device = get_device()
     save_name = save_name or model_type
 
-    # Create data loaders
+    # Create data loaders (with appropriate transforms for model type)
     print("\nLoading data...")
-    train_loader, val_loader, test_loader = create_data_loaders()
+    train_loader, val_loader, test_loader = create_data_loaders(model_type=model_type)
 
     # Create model
     print("\nCreating model...")
@@ -392,9 +392,9 @@ def train_with_fine_tuning(num_epochs: int = NUM_EPOCHS) -> Dict:
     set_seed()
     device = get_device()
 
-    # Create data loaders
+    # Create data loaders (224x224 RGB for transfer learning)
     print("\nLoading data...")
-    train_loader, val_loader, test_loader = create_data_loaders()
+    train_loader, val_loader, test_loader = create_data_loaders(model_type='transfer')
 
     # Phase 1: Train classifier with frozen backbone
     print("\n" + "-" * 60)

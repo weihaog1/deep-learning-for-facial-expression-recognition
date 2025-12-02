@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 
-from config import NUM_CLASSES, CNN_DROPOUT
+from config import NUM_CLASSES, CNN_DROPOUT, CNN_IMG_SIZE, CNN_CHANNELS
 
 
 class ConvBlock(nn.Module):
@@ -58,52 +58,50 @@ class CustomCNN(nn.Module):
     """
     Custom CNN architecture for facial expression recognition.
 
-    Architecture:
-    - 4 Convolutional blocks (progressively increasing channels)
+    Architecture (based on other CS178 group's successful model):
+    - 3 Convolutional blocks (32 -> 64 -> 32 filters)
     - Global average pooling (reduces parameters, prevents overfitting)
     - 2 Fully connected layers with dropout
 
-    Input: RGB images of size 224x224
+    Input: GRAYSCALE images of size 48x48 (much faster than 224x224 RGB!)
     Output: 7 class logits (one per emotion)
 
     Improvements applied:
     - LeakyReLU instead of ReLU (prevents dying neurons)
-    - Reduced dropout (0.3 instead of 0.5) - works better with batch norm
-    - Gamma correction + histogram equalization in preprocessing
-    - Class-weighted loss to handle imbalanced data
+    - Batch normalization (faster convergence)
+    - Dropout 0.2 (from other group's findings)
+    - Smart oversampling for class balance
     """
 
-    def __init__(self, num_classes: int = NUM_CLASSES, dropout: float = 0.3):
+    def __init__(self, num_classes: int = NUM_CLASSES, dropout: float = 0.2,
+                 in_channels: int = CNN_CHANNELS):
         super().__init__()
 
-        # Convolutional layers
-        # Each block doubles the channels and halves the spatial dimensions
-        self.conv1 = ConvBlock(3, 32)      # 224 -> 112
-        self.conv2 = ConvBlock(32, 64)     # 112 -> 56
-        self.conv3 = ConvBlock(64, 128)    # 56 -> 28
-        self.conv4 = ConvBlock(128, 256)   # 28 -> 14
+        # Convolutional layers (like other CS178 group: 32 -> 64 -> 32)
+        # Each block halves the spatial dimensions
+        self.conv1 = ConvBlock(in_channels, 32)  # 48 -> 24
+        self.conv2 = ConvBlock(32, 64)           # 24 -> 12
+        self.conv3 = ConvBlock(64, 32)           # 12 -> 6
 
         # Global Average Pooling
-        # Reduces each channel to a single value (14x14 -> 1x1)
-        # This is more robust than flattening and reduces overfitting
+        # Reduces each channel to a single value (6x6 -> 1x1)
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
 
         # Classifier head with LeakyReLU
-        self.fc1 = nn.Linear(256, 128)
+        self.fc1 = nn.Linear(32, 64)
         self.fc_activation = nn.LeakyReLU(negative_slope=0.01)
-        self.dropout = nn.Dropout(dropout)  # Reduced from 0.5 to 0.3
-        self.fc2 = nn.Linear(128, num_classes)
+        self.dropout = nn.Dropout(dropout)  # 0.2 from other group
+        self.fc2 = nn.Linear(64, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Feature extraction
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
-        x = self.conv4(x)
 
         # Global pooling and flatten
         x = self.global_pool(x)
-        x = x.view(x.size(0), -1)  # Flatten: (batch, 256, 1, 1) -> (batch, 256)
+        x = x.view(x.size(0), -1)  # Flatten: (batch, 32, 1, 1) -> (batch, 32)
 
         # Classification with LeakyReLU
         x = self.fc_activation(self.fc1(x))
@@ -116,12 +114,11 @@ class CustomCNN(nn.Module):
         """
         Get feature maps from the last conv layer (for Grad-CAM).
 
-        Returns the output of conv4 before global pooling.
+        Returns the output of conv3 before global pooling.
         """
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
-        x = self.conv4(x)
         return x
 
 
@@ -225,18 +222,19 @@ def count_parameters(model: nn.Module) -> int:
 
 if __name__ == "__main__":
     # Test model creation
-    print("Testing CustomCNN...")
+    print("Testing CustomCNN (48x48 grayscale)...")
     custom_model = CustomCNN()
-    x = torch.randn(4, 3, 224, 224)  # Batch of 4 images
-    out = custom_model(x)
-    print(f"  Input shape:  {x.shape}")
+    x_cnn = torch.randn(4, CNN_CHANNELS, CNN_IMG_SIZE, CNN_IMG_SIZE)  # Batch of 4 grayscale images
+    out = custom_model(x_cnn)
+    print(f"  Input shape:  {x_cnn.shape}")
     print(f"  Output shape: {out.shape}")
     print(f"  Parameters:   {count_parameters(custom_model):,}")
 
-    print("\nTesting TransferLearningModel...")
+    print("\nTesting TransferLearningModel (224x224 RGB)...")
     transfer_model = TransferLearningModel(freeze_backbone=True)
-    out = transfer_model(x)
-    print(f"  Input shape:  {x.shape}")
+    x_transfer = torch.randn(4, 3, 224, 224)  # Batch of 4 RGB images
+    out = transfer_model(x_transfer)
+    print(f"  Input shape:  {x_transfer.shape}")
     print(f"  Output shape: {out.shape}")
     print(f"  Trainable parameters (frozen): {count_parameters(transfer_model):,}")
 

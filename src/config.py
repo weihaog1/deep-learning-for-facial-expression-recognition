@@ -50,15 +50,24 @@ NUM_CLASSES = len(EMOTION_CLASSES)
 # IMAGE SETTINGS
 # =============================================================================
 
-# Image size for CNN models (standard for transfer learning)
-IMG_SIZE = 224
+# Custom CNN: 48x48 grayscale (like other CS178 group - much faster training)
+CNN_IMG_SIZE = 48
+CNN_CHANNELS = 1  # Grayscale
 
-# Image size for baseline model (smaller for faster processing)
+# Transfer Learning (ResNet): 224x224 RGB (required for pretrained ImageNet weights)
+TRANSFER_IMG_SIZE = 224
+TRANSFER_CHANNELS = 3  # RGB
+
+# Image size for baseline model (HOG features)
 BASELINE_IMG_SIZE = 48
 
 # Normalization values (ImageNet statistics for transfer learning)
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
+
+# Grayscale normalization (single channel)
+GRAYSCALE_MEAN = [0.5]
+GRAYSCALE_STD = [0.5]
 
 # =============================================================================
 # TRAINING HYPERPARAMETERS
