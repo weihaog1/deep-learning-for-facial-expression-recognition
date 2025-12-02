@@ -50,8 +50,8 @@ NUM_CLASSES = len(EMOTION_CLASSES)
 # IMAGE SETTINGS
 # =============================================================================
 
-# Custom CNN: 48x48 grayscale (like other CS178 group - much faster training)
-CNN_IMG_SIZE = 48
+# Custom CNN: 50x50 grayscale (exactly like other CS178 group)
+CNN_IMG_SIZE = 50
 CNN_CHANNELS = 1  # Grayscale
 
 # Transfer Learning (ResNet): 224x224 RGB (required for pretrained ImageNet weights)

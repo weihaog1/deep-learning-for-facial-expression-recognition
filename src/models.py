@@ -16,95 +16,79 @@ from torchvision import models
 from config import NUM_CLASSES, CNN_DROPOUT, CNN_IMG_SIZE, CNN_CHANNELS
 
 
-class ConvBlock(nn.Module):
-    """
-    A reusable convolutional block.
-
-    Structure: Conv2D -> BatchNorm -> LeakyReLU -> MaxPool
-
-    This pattern is standard in CNNs:
-    - Conv2D: Learns spatial features (edges, textures, patterns)
-    - BatchNorm: Stabilizes training, allows higher learning rates
-    - LeakyReLU: Non-linearity that prevents dying neurons (improvement over ReLU)
-    - MaxPool: Reduces spatial dimensions, adds translation invariance
-
-    Using LeakyReLU instead of ReLU (from CS178 other group's findings):
-    - Prevents "dying ReLU" problem where neurons output 0 for all inputs
-    - Allows small gradient when input is negative
-    - Improved their accuracy from 91% to 95%
-    """
-
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3):
-        super().__init__()
-        self.conv = nn.Conv2d(
-            in_channels, out_channels,
-            kernel_size=kernel_size,
-            padding=kernel_size // 2  # Same padding to preserve size
-        )
-        self.bn = nn.BatchNorm2d(out_channels)
-        # LeakyReLU: f(x) = x if x > 0, else 0.01 * x
-        self.activation = nn.LeakyReLU(negative_slope=0.01)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.conv(x)
-        x = self.bn(x)
-        x = self.activation(x)  # LeakyReLU instead of ReLU
-        x = self.pool(x)
-        return x
-
-
 class CustomCNN(nn.Module):
     """
-    Custom CNN architecture for facial expression recognition.
+    Custom CNN architecture - EXACT replica of other CS178 group's model.
 
-    Architecture (based on other CS178 group's successful model):
-    - 3 Convolutional blocks (32 -> 64 -> 32 filters)
-    - Global average pooling (reduces parameters, prevents overfitting)
-    - 2 Fully connected layers with dropout
+    From their paper:
+    - 3 Conv layers: 32 -> 64 -> 32 filters
+    - BatchNorm after each conv, before pooling
+    - MaxPool (2x2) only after first TWO conv layers
+    - LeakyReLU activation (increased accuracy from 91% to 95%)
+    - Dropout 0.20
+    - RMSprop optimizer
 
-    Input: GRAYSCALE images of size 48x48 (much faster than 224x224 RGB!)
-    Output: 7 class logits (one per emotion)
+    Input: 50x50 grayscale images
+    Output: 7 class logits
 
-    Improvements applied:
-    - LeakyReLU instead of ReLU (prevents dying neurons)
-    - Batch normalization (faster convergence)
-    - Dropout 0.2 (from other group's findings)
-    - Smart oversampling for class balance
+    Architecture:
+        Conv1(32) -> BN -> LeakyReLU -> Pool    [50 -> 25]
+        Conv2(64) -> BN -> LeakyReLU -> Pool    [25 -> 12]
+        Conv3(32) -> BN -> LeakyReLU            [12 -> 12, no pool]
+        Flatten -> FC -> Dropout -> Output
     """
 
-    def __init__(self, num_classes: int = NUM_CLASSES, dropout: float = 0.2,
+    def __init__(self, num_classes: int = NUM_CLASSES, dropout: float = 0.20,
                  in_channels: int = CNN_CHANNELS):
         super().__init__()
 
-        # Convolutional layers (like other CS178 group: 32 -> 64 -> 32)
-        # Each block halves the spatial dimensions
-        self.conv1 = ConvBlock(in_channels, 32)  # 48 -> 24
-        self.conv2 = ConvBlock(32, 64)           # 24 -> 12
-        self.conv3 = ConvBlock(64, 32)           # 12 -> 6
+        # Conv Layer 1: 32 filters (extracts low-level features: edges, shadows)
+        self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)  # 50 -> 25
 
-        # Global Average Pooling
-        # Reduces each channel to a single value (6x6 -> 1x1)
-        self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
+        # Conv Layer 2: 64 filters (extracts facial features: eyes, nose, contours)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)  # 25 -> 12
 
-        # Classifier head with LeakyReLU
-        self.fc1 = nn.Linear(32, 64)
-        self.fc_activation = nn.LeakyReLU(negative_slope=0.01)
-        self.dropout = nn.Dropout(dropout)  # 0.2 from other group
-        self.fc2 = nn.Linear(64, num_classes)
+        # Conv Layer 3: 32 filters (compression layer - NO pooling)
+        self.conv3 = nn.Conv2d(64, 32, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(32)
+        # No pooling after conv3 (from paper: "pooling layers after first two conv layers")
+
+        # LeakyReLU activation (from paper: improved accuracy from 91% to 95%)
+        self.activation = nn.LeakyReLU(negative_slope=0.01)
+
+        # Classifier head
+        # After conv3: 32 channels * 12 * 12 = 4608 features
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Linear(32 * 12 * 12, 128)  # Hidden layer
+        self.dropout = nn.Dropout(dropout)  # 0.20 from paper
+        self.fc2 = nn.Linear(128, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Feature extraction
+        # Conv block 1: Conv -> BN -> LeakyReLU -> Pool
         x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.activation(x)
+        x = self.pool1(x)
+
+        # Conv block 2: Conv -> BN -> LeakyReLU -> Pool
         x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.activation(x)
+        x = self.pool2(x)
+
+        # Conv block 3: Conv -> BN -> LeakyReLU (NO pool)
         x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.activation(x)
 
-        # Global pooling and flatten
-        x = self.global_pool(x)
-        x = x.view(x.size(0), -1)  # Flatten: (batch, 32, 1, 1) -> (batch, 32)
-
-        # Classification with LeakyReLU
-        x = self.fc_activation(self.fc1(x))
+        # Classifier
+        x = self.flatten(x)
+        x = self.fc1(x)
+        x = self.activation(x)
         x = self.dropout(x)
         x = self.fc2(x)
 
@@ -112,13 +96,22 @@ class CustomCNN(nn.Module):
 
     def get_feature_maps(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Get feature maps from the last conv layer (for Grad-CAM).
-
-        Returns the output of conv3 before global pooling.
+        Get feature maps from the last conv layer (for Grad-CAM visualization).
         """
         x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.activation(x)
+        x = self.pool1(x)
+
         x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.activation(x)
+        x = self.pool2(x)
+
         x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.activation(x)
+
         return x
 
 
@@ -222,7 +215,7 @@ def count_parameters(model: nn.Module) -> int:
 
 if __name__ == "__main__":
     # Test model creation
-    print("Testing CustomCNN (48x48 grayscale)...")
+    print("Testing CustomCNN (50x50 grayscale - matching other CS178 group)...")
     custom_model = CustomCNN()
     x_cnn = torch.randn(4, CNN_CHANNELS, CNN_IMG_SIZE, CNN_IMG_SIZE)  # Batch of 4 grayscale images
     out = custom_model(x_cnn)
