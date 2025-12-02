@@ -281,8 +281,9 @@ def train_model(
         criterion = nn.CrossEntropyLoss()
         print("Using standard CrossEntropyLoss (no class weighting)")
 
-    # Optimizer
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    # Optimizer - RMSprop instead of Adam (from other CS178 group's findings)
+    # They found Adam can plateau at lower accuracies, RMSprop converges faster
+    optimizer = optim.RMSprop(model.parameters(), lr=learning_rate)
 
     # Learning rate scheduler - reduce LR when validation loss plateaus
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(

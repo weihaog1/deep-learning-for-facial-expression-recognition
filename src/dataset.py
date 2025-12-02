@@ -261,14 +261,11 @@ def get_test_transform(model_type: str = 'custom', use_preprocessing: bool = Tru
     return transforms.Compose(transform_list)
 
 
-def smart_oversample(df: pd.DataFrame, target_min: int = 3000, target_max: int = 4000) -> pd.DataFrame:
+def smart_oversample(df: pd.DataFrame, target_min: int = 5300, target_max: int = 6700) -> pd.DataFrame:
     """
     Smart oversampling to balance classes WITHOUT making them perfectly uniform.
 
-    Based on findings from another CS178 group's work:
-    - Perfectly uniform distributions cause overfitting
-    - Slight variation (3,000-4,000 range) works better
-    - Only oversample minority classes, don't downsample majority
+    
 
     Args:
         df: DataFrame with 'label' column
