@@ -91,6 +91,9 @@ This will:
 
 ### Option 2: Run Individual Experiments
 ```bash
+# Visualize dataset (EDA before training)
+python run_experiments.py --viz
+
 # Just the baseline
 python run_experiments.py --baseline
 

@@ -19,6 +19,7 @@ Usage:
 
 import argparse
 import sys
+import subprocess
 from pathlib import Path
 
 # Add src to path for imports
@@ -26,6 +27,21 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from config import CHECKPOINT_DIR, OUTPUT_DIR
 
+def run_visualize_data():
+    """Run dataset visualization (EDA) before training."""
+    print("\n" + "=" * 70)
+    print("VISUALIZING DATA (EDA BEFORE TRAINING)")
+    print("=" * 70)
+
+    viz_script = Path(__file__).parent / "visualize_data.py"
+
+    if not viz_script.exists():
+        print(f"\nvisualize_data.py not found at: {viz_script}")
+        return
+
+    # Default: save to outputs/eda (same as visualize_data.py default)
+    cmd = [sys.executable, str(viz_script)]
+    subprocess.run(cmd, check=True)
 
 def run_baseline():
     """Run the baseline HOG + SVM model."""
@@ -170,6 +186,8 @@ Examples:
 
     parser.add_argument('--all', action='store_true',
                         help='Run all experiments')
+    parser.add_argument('--viz', action='store_true',
+                        help='Visualize dataset before training (EDA)')
     parser.add_argument('--baseline', action='store_true',
                         help='Run baseline HOG + SVM')
     parser.add_argument('--cnn', action='store_true',
@@ -187,7 +205,7 @@ Examples:
 
     # If no specific option, show help
     if not any([args.all, args.baseline, args.cnn, args.transfer,
-                args.evaluate, args.gradcam]):
+                args.evaluate, args.gradcam, args.viz]):
         parser.print_help()
         return
 
@@ -196,6 +214,9 @@ Examples:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # Run requested experiments
+    if args.all or args.viz:
+        run_visualize_data()
+
     if args.all or args.baseline:
         run_baseline()
 
