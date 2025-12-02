@@ -165,15 +165,23 @@ def get_train_transform(model_type: str = 'custom', use_preprocessing: bool = Tr
     """
     Get transforms for training data based on model type.
 
-    Custom CNN: 48x48 grayscale (fast training)
-    Transfer Learning: 224x224 RGB (required for pretrained weights)
+    Strong augmentation ensures each sample is unique, even when oversampling.
+    This helps the model learn robust features instead of memorizing images.
+
+    Augmentations applied:
+    - RandomHorizontalFlip: Faces are symmetric
+    - RandomRotation: Slight head tilts (±15°)
+    - RandomAffine: Scale (90-110%) and translate (±10%)
+    - ColorJitter: Brightness/contrast variation
+    - RandomPerspective: Slight camera angle changes
+    - GaussianBlur: Occasional blur for robustness
 
     Args:
         model_type: 'custom' for CNN or 'transfer' for ResNet
         use_preprocessing: Whether to apply gamma correction and histogram equalization
     """
     if model_type == 'custom':
-        # Custom CNN: 48x48 grayscale (like other CS178 group)
+        # Custom CNN: 50x50 grayscale
         transform_list = [
             transforms.Resize((CNN_IMG_SIZE, CNN_IMG_SIZE)),
             transforms.Grayscale(num_output_channels=1),
@@ -185,9 +193,24 @@ def get_train_transform(model_type: str = 'custom', use_preprocessing: bool = Tr
                 HistogramEqualization(),
             ])
 
+        # Strong augmentation - makes each oversampled image unique
         transform_list.extend([
             transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomRotation(degrees=10),
+            transforms.RandomRotation(degrees=15),
+            transforms.RandomAffine(
+                degrees=0,              # Rotation handled above
+                translate=(0.1, 0.1),   # Shift up to 10% in x/y
+                scale=(0.9, 1.1),       # Zoom 90-110%
+            ),
+            transforms.ColorJitter(
+                brightness=0.3,         # ±30% brightness
+                contrast=0.3,           # ±30% contrast
+            ),
+            transforms.RandomPerspective(distortion_scale=0.1, p=0.3),
+            transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 1.0)),
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=5, sigma=(0.5, 1.5))
+            ], p=0.2),  # Occasional stronger blur
             transforms.ToTensor(),
             transforms.Normalize(mean=GRAYSCALE_MEAN, std=GRAYSCALE_STD)
         ])
@@ -203,10 +226,25 @@ def get_train_transform(model_type: str = 'custom', use_preprocessing: bool = Tr
                 HistogramEqualization(),
             ])
 
+        # Strong augmentation for transfer learning
         transform_list.extend([
             transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomRotation(degrees=10),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomRotation(degrees=15),
+            transforms.RandomAffine(
+                degrees=0,
+                translate=(0.1, 0.1),
+                scale=(0.9, 1.1),
+            ),
+            transforms.ColorJitter(
+                brightness=0.3,
+                contrast=0.3,
+                saturation=0.2,         # Color saturation (RGB only)
+                hue=0.05,               # Slight hue shift (RGB only)
+            ),
+            transforms.RandomPerspective(distortion_scale=0.1, p=0.3),
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=5, sigma=(0.5, 1.5))
+            ], p=0.2),
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
         ])

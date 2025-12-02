@@ -28,7 +28,8 @@ import numpy as np
 
 from config import (
     NUM_EPOCHS, LEARNING_RATE, PATIENCE,
-    CHECKPOINT_DIR, RANDOM_SEED, FINE_TUNE_LR, NUM_CLASSES
+    CHECKPOINT_DIR, RANDOM_SEED, FINE_TUNE_LR, NUM_CLASSES,
+    EMOTION_CLASSES
 )
 from models import get_model, count_parameters
 from dataset import create_data_loaders, load_and_clean_labels
@@ -230,6 +231,121 @@ def validate(
     return avg_loss, accuracy
 
 
+def detailed_evaluate(
+    model: nn.Module,
+    data_loader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device
+) -> Dict:
+    """
+    Detailed evaluation with per-class metrics and balanced accuracy.
+
+    Returns:
+        Dictionary containing:
+        - loss: Average loss
+        - accuracy: Overall accuracy
+        - balanced_accuracy: Average of per-class accuracies (handles imbalance)
+        - per_class_accuracy: Dict of accuracy for each emotion class
+        - confusion_matrix: Full confusion matrix
+        - f1_scores: Per-class F1 scores
+    """
+    model.eval()
+    running_loss = 0.0
+    all_preds = []
+    all_labels = []
+
+    with torch.no_grad():
+        for images, labels in data_loader:
+            images = images.to(device)
+            labels = labels.to(device)
+
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+
+            running_loss += loss.item() * images.size(0)
+            _, predicted = outputs.max(1)
+
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    all_preds = np.array(all_preds)
+    all_labels = np.array(all_labels)
+    total = len(all_labels)
+
+    # Overall metrics
+    avg_loss = running_loss / total
+    accuracy = (all_preds == all_labels).sum() / total
+
+    # Per-class accuracy
+    per_class_correct = {}
+    per_class_total = {}
+    per_class_accuracy = {}
+
+    for class_idx, class_name in enumerate(EMOTION_CLASSES):
+        mask = all_labels == class_idx
+        class_total = mask.sum()
+        if class_total > 0:
+            class_correct = ((all_preds == class_idx) & mask).sum()
+            per_class_total[class_name] = int(class_total)
+            per_class_correct[class_name] = int(class_correct)
+            per_class_accuracy[class_name] = class_correct / class_total
+        else:
+            per_class_total[class_name] = 0
+            per_class_correct[class_name] = 0
+            per_class_accuracy[class_name] = 0.0
+
+    # Balanced accuracy (average of per-class accuracies)
+    # This handles class imbalance better than overall accuracy
+    valid_accuracies = [acc for acc in per_class_accuracy.values() if acc > 0 or per_class_total[list(per_class_accuracy.keys())[list(per_class_accuracy.values()).index(acc)]] > 0]
+    balanced_accuracy = np.mean(list(per_class_accuracy.values()))
+
+    # Per-class F1 scores
+    f1_scores = {}
+    for class_idx, class_name in enumerate(EMOTION_CLASSES):
+        # True positives, false positives, false negatives
+        tp = ((all_preds == class_idx) & (all_labels == class_idx)).sum()
+        fp = ((all_preds == class_idx) & (all_labels != class_idx)).sum()
+        fn = ((all_preds != class_idx) & (all_labels == class_idx)).sum()
+
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+        f1_scores[class_name] = f1
+
+    # Macro F1 (average of per-class F1)
+    macro_f1 = np.mean(list(f1_scores.values()))
+
+    return {
+        'loss': avg_loss,
+        'accuracy': accuracy,
+        'balanced_accuracy': balanced_accuracy,
+        'macro_f1': macro_f1,
+        'per_class_accuracy': per_class_accuracy,
+        'per_class_total': per_class_total,
+        'f1_scores': f1_scores
+    }
+
+
+def print_detailed_metrics(metrics: Dict, dataset_name: str = "Test") -> None:
+    """Pretty print the detailed evaluation metrics."""
+    print(f"\n{dataset_name} Results:")
+    print("-" * 50)
+    print(f"  Overall Accuracy:  {metrics['accuracy']:.4f} ({metrics['accuracy']*100:.2f}%)")
+    print(f"  Balanced Accuracy: {metrics['balanced_accuracy']:.4f} ({metrics['balanced_accuracy']*100:.2f}%)")
+    print(f"  Macro F1 Score:    {metrics['macro_f1']:.4f}")
+    print(f"  Loss:              {metrics['loss']:.4f}")
+
+    print(f"\n  Per-Class Performance:")
+    print(f"  {'Emotion':<12} {'Accuracy':>10} {'F1 Score':>10} {'Samples':>10}")
+    print(f"  {'-'*12} {'-'*10} {'-'*10} {'-'*10}")
+
+    for class_name in EMOTION_CLASSES:
+        acc = metrics['per_class_accuracy'][class_name]
+        f1 = metrics['f1_scores'][class_name]
+        total = metrics['per_class_total'][class_name]
+        print(f"  {class_name:<12} {acc:>10.2%} {f1:>10.4f} {total:>10}")
+
+
 def train_model(
     model_type: str = 'custom',
     num_epochs: int = NUM_EPOCHS,
@@ -358,11 +474,24 @@ def train_model(
     checkpoint = torch.load(best_model_path, weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
 
-    test_loss, test_acc = validate(model, test_loader, criterion, device)
-    print(f"Test Loss: {test_loss:.4f}")
-    print(f"Test Accuracy: {test_acc:.4f}")
+    # Detailed evaluation with per-class metrics
+    test_metrics = detailed_evaluate(model, test_loader, criterion, device)
+    print_detailed_metrics(test_metrics, "Test")
 
-    # Save training history
+    # Also show validation metrics for comparison
+    val_metrics = detailed_evaluate(model, val_loader, criterion, device)
+    print_detailed_metrics(val_metrics, "Validation")
+
+    # Save training history with detailed metrics
+    history['test_metrics'] = {
+        'accuracy': test_metrics['accuracy'],
+        'balanced_accuracy': test_metrics['balanced_accuracy'],
+        'macro_f1': test_metrics['macro_f1'],
+        'loss': test_metrics['loss'],
+        'per_class_accuracy': test_metrics['per_class_accuracy'],
+        'f1_scores': test_metrics['f1_scores']
+    }
+
     history_path = CHECKPOINT_DIR / f"{save_name}_history.json"
     with open(history_path, 'w') as f:
         json.dump(history, f, indent=2)
@@ -370,8 +499,10 @@ def train_model(
 
     return {
         'history': history,
-        'test_loss': test_loss,
-        'test_acc': test_acc,
+        'test_loss': test_metrics['loss'],
+        'test_acc': test_metrics['accuracy'],
+        'test_balanced_acc': test_metrics['balanced_accuracy'],
+        'test_macro_f1': test_metrics['macro_f1'],
         'best_epoch': checkpoint['epoch'],
         'model_path': str(best_model_path)
     }
